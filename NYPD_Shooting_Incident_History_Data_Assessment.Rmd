@@ -1,0 +1,107 @@
+---
+title: "NYPD Incidents Historic Data Assessment"
+date: "2024-03-05"
+output:
+  pdf_document: default
+  word_document: default
+  html_document:
+    df_print: paged
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Import Library
+
+```{r, echo=TRUE}
+library(tidyverse)
+```
+
+## Import Data
+
+```{r, echo=TRUE}
+NYPD_shooting <- read_csv("NYPD_Shooting_Incident_Data__Historic_.csv")
+```
+## Tidy and analyze data
+
+### Changing the occured date column type to date
+
+```{r, echo=TRUE}
+NYPD_shooting <- NYPD_shooting %>%
+mutate(OCCUR_DATE = mdy(OCCUR_DATE))
+```
+
+### Changing the borough column type to factor
+
+```{r, echo=TRUE}
+NYPD_shooting <- NYPD_shooting %>%
+mutate(BORO = factor(BORO))
+```
+
+### Summarizing the total incidents per borough
+
+```{r, echo=TRUE}
+incidents_per_boro <- NYPD_shooting %>%
+group_by(BORO) %>%
+summarize(total_incidents = n())
+```
+
+### Finding out the 5 boroughs with the most shooting incidents
+
+```{r, echo=TRUE}
+top_5_boros <- incidents_per_boro %>%
+arrange(desc(total_incidents)) %>%
+slice(1:5)
+```
+
+### Summarizing the total incidents per date
+
+```{r, echo=TRUE}
+incidents_per_date <- NYPD_shooting %>%
+group_by(OCCUR_DATE) %>%
+summarize(total_incidents = n())
+```
+
+## Visualisation 1 - top 5 Boroughs with the most shooting incidents
+
+```{r, echo=TRUE}
+ggplot(top_5_boros, aes(x = BORO, y = total_incidents)) +
+geom_bar(stat = "identity", fill = "skyblue") +
+labs(title = "Top 5 Boroughs with the Most Incidents", x = "Borough", y = "Total Incidents") +
+theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+### Based on the analysis the top boroughs in New York area with NYPD shootings incidents are: Brooklyn, Bronx, Queens, Manhattan, Staten Island.
+
+## Visualization 2 - number of incidents over time
+```{r, echo=TRUE}
+ggplot(incidents_per_date, aes(x = OCCUR_DATE, y = total_incidents)) +
+geom_line(color = "blue") +
+labs(title = "Number of Incidents Over Time", x = "Date", y = "Total Incidents")
+```
+
+### This visualization shows no obvious pattern, and the number of shooting incidents seem to go up and down but what is interesting is the surge in incidents after 2020.
+
+## Model
+
+```{r, echo=TRUE}
+model <- lm(total_incidents ~ OCCUR_DATE, data = incidents_per_date)
+```
+
+```{r, echo=TRUE}
+NYPD_shooting_predictions <- incidents_per_date %>%
+ungroup() %>%
+mutate(pred = predict(model))
+```
+```{r, echo=TRUE}
+ggplot(NYPD_shooting_predictions, aes(x = OCCUR_DATE)) +
+geom_point(aes(y = total_incidents), color = "blue", alpha = 0.5) +
+geom_point(aes(y = pred), color = "red", alpha = 0.5) +
+labs(x = "Date", y = "Deaths per Cases", title = "Actual vs.Predicted NYPD Shooting Incidents") + theme_minimal()
+```
+### The model shows a steady although not rapid decrease in the shooting incidents
+
+## Bias
+
+### My personal bias is influenced by the news information on the amount of crime in New York City, expecially it’s certain areas. WHen analyzing this data I tried not to look for a confirmaition of my bias but rather at what the data presents.

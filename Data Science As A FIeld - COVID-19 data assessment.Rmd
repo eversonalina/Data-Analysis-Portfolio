@@ -1,0 +1,123 @@
+---
+title: "Untitled"
+output: html_document
+date: "2024-03-05"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+## Import packages
+```{r, echo=TRUE}
+library(tidyverse)
+```
+## Import data
+
+```{r, echo=TRUE}
+url_in <- "https://github.com/CSSEGISandData/COVID-19/raw/master/csse_covid_19_data/csse_covid_19_time_series/"
+file_names <- c("time_series_covid19_confirmed_US.csv",
+                 "time_series_covid19_deaths_US.csv")
+urls <- str_c(url_in, file_names)
+urls
+US_cases <- read_csv(urls[1])
+US_deaths <- read_csv(urls[2])
+```
+## Tidy and analyze data
+
+### Change date column to date type for both datasets cases and deaths
+```{r, echo=TRUE}
+US_cases <- US_cases %>%
+pivot_longer(cols = -(UID:Combined_Key),
+names_to = "date",
+values_to = "cases") %>%
+mutate(date = mdy(date))
+```
+
+```{r, echo=TRUE}
+US_deaths <- US_deaths %>%
+pivot_longer(cols = -(UID:Population),
+names_to = "date",
+values_to = "deaths") %>%
+mutate(date = mdy(date))
+```
+
+### Filtering datasets to show Oregon data
+
+```{r, echo=TRUE}
+OR_cases <- US_cases %>%
+  filter(Province_State == "Oregon") %>%
+  group_by(Admin2, date) %>%
+  summarize(total_cases = sum(cases))
+```
+
+```{r, echo=TRUE}
+OR_deaths <- US_deaths %>%
+filter(Province_State == "Oregon") %>%
+group_by(Admin2, date) %>%
+summarize(total_deaths = sum(deaths))
+```
+
+### Joining both datasets and filtering cases to more than a 0
+```{r, echo=TRUE}
+OR_totals <- left_join(OR_cases, OR_deaths, by = c("Admin2", "date"))
+```
+
+```{r, echo=TRUE}
+OR_totals <- OR_totals %>%
+filter(total_cases > 0)
+```
+### Calculating how much deaths happened per cases
+
+```{r, echo=TRUE}
+OR_deaths_per_cases <- OR_totals %>%
+mutate(deaths_per_cases = total_deaths / total_cases)
+```
+## Visualization 1 - Deaths per Cases Over Time
+
+```{r, echo=TRUE}
+ggplot(OR_deaths_per_cases, aes(x = date, y = deaths_per_cases)) +
+geom_line(color = "red") +
+labs(x = "Date", y = "Deaths per Cases") +
+ggtitle("Deaths per Cases Over Time")
+```
+### The visualiazation shows that overall deaths per cases have been decreasing since 2021 but there was a surge between 2022 and 2023.
+
+#Visualization 2 - Top 5 Counite with Deaths per Cases
+
+```{r, echo=TRUE}
+OR_top_counties <- OR_deaths_per_cases %>%
+group_by(Admin2) %>%
+summarise(total_deaths_per_cases = sum(deaths_per_cases)) %>% arrange(desc(total_deaths_per_cases)) %>%
+top_n(5)
+```
+```{r, echo=TRUE}
+ggplot(OR_top_counties, aes(x = Admin2, y = total_deaths_per_cases)) +
+geom_bar(stat = "identity", fill = "blue") +
+labs(x = "County", y = "Most Deaths per Cases", title = "Top Counties by Most Deaths per Cases")
+```
+### This visualization indicates that Oregon counties Yamhill, Josephine, Wallowa, Linn, and Polk has the most deaths per cases in the state.
+
+#Model
+
+```{r, echo=TRUE}
+model <- lm(deaths_per_cases ~ total_deaths + total_cases, data = OR_deaths_per_cases)
+```
+
+```{r, echo=TRUE}
+OR_deaths_per_cases_predictions <- OR_deaths_per_cases %>%
+ungroup() %>%
+mutate(pred = predict(model))
+```
+
+```{r, echo=TRUE}
+ggplot(OR_deaths_per_cases_predictions, aes(x = date)) +
+geom_point(aes(y = deaths_per_cases), color = "blue", alpha = 0.5) +
+geom_point(aes(y = pred), color = "red", alpha = 0.5) +
+labs(x = "Date", y = "Deaths per Cases", title = "Actual vs.Predicted Deaths per Cases Over Time") +
+theme_minimal()
+```
+### Overall the model predicts a slow but steady decrease of deaths per cases
+
+
+## Bias
+### As a resident or Oregon I have a personal investment in the COVID dynamic, particularly in reagrd to the rise of the anti-vaxing movements in certain areas of the state. So it was important to me to not look for a confirmation of my bias in this project.
